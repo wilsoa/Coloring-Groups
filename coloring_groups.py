@@ -4,6 +4,7 @@ from sage.combinat.set_partition import SetPartitions
 from sage.combinat.subset import Subsets
 from sage.graphs.graph import Graph
 from copy import deepcopy
+from sage.combinat.posets.posets import Poset
 
 def ColoringGroup (pi):
     gens = [];
@@ -36,7 +37,35 @@ class EdgeColoring:
         return self._G.plot(color_by_label=True);
     def group (self):
         return ColoringGroup(self._pi);
-    # Returns the product of all the generators
+
+    # Returns the poset of the absolute order (could certainly be done faster)
+    def absolute_order(self):
+        G = self.group();
+        simples = G.gens();
+        transpositions = set();
+
+        for s in simples:
+            for g in G:
+                transpositions.add(g*s*(g**(-1)));
+
+        GT = PermutationGroup(tuple(transpositions));
+
+        C = GT.cayley_graph();
+
+        def compute_length (g):
+            return C.shortest_path_length(GT.identity(), g);
+
+        relations = set();
+
+        for g1 in GT:
+            for g2 in GT:
+                # g1 < g2
+                if compute_length(g2) == compute_length(g1) + compute_length((g1**(-1))*g2):
+                    relations.add((g1,g2));
+
+        return Poset((GT, relations));
+
+    # Returns a product of all the generators
     def long_product(self):
         H = self.group();
         out = H([(e[0],e[1]) for e in self._pi[0]]);
