@@ -5,6 +5,8 @@ from sage.combinat.subset import Subsets
 from sage.graphs.graph import Graph
 from copy import deepcopy
 from sage.combinat.posets.posets import Poset
+from sage.combinat.permutation import Permutations
+from sage.groups.perm_gps.permgroup_named import SymmetricGroup
 
 def ColoringGroup (pi):
     gens = [];
@@ -23,11 +25,13 @@ class EdgeColoring:
         if pi == None:
             self._pi = [[(e[0],e[1]) for e in block] for block in G];
             self._G = Graph();
+            self._group = None;
             for block in G:
                 for e in block:
                     self._G.add_edge(e[0], e[1]);
         else:
             self._G = G;
+            self._group = None;
             self._pi = sorted(pi, key=len);
     def plot (self):
         for i in range(0, len(self._pi)):
@@ -36,7 +40,21 @@ class EdgeColoring:
                 self._G.set_edge_label(edge[0], edge[1], i);
         return self._G.plot(color_by_label=True);
     def group (self):
-        return ColoringGroup(self._pi);
+        if self._group == None:
+            self._group = ColoringGroup(self._pi);
+
+        return self._group;
+
+    def coxeter_elements (self):
+        G = self.group();
+        gens = G.gens();
+        for pi in Permutations(gens):
+            elt = G.one();
+            
+            for p in pi:
+                elt = elt * p;
+            
+            yield elt;
 
     # Returns the poset of the absolute order (could certainly be done faster)
     def absolute_order(self):
@@ -59,9 +77,40 @@ class EdgeColoring:
 
         for g1 in GT:
             for g2 in GT:
-                # g1 < g2
-                if compute_length(g2) == compute_length(g1) + compute_length((g1**(-1))*g2):
-                    relations.add((g1,g2));
+                # No need to check if they are the same or already compare the other way
+                if g1 != g2 and (g2,g1) not in relations:
+                    # g1 < g2
+                    if compute_length(g2) == compute_length(g1) + compute_length((g1**(-1))*g2):
+                        relations.add((g1,g2));
+
+        return Poset((GT, relations));
+
+    # Returns the poset of the absolute order with transpositions as anything conjugate in the symmetric group (could certainly be done faster)
+    def super_absolute_order(self):
+        G = self.group();
+        simples = G.gens();
+        transpositions = set();
+
+        for s in simples:
+            for g in SymmetricGroup(self._G.order()):
+                transpositions.add(g*s*(g**(-1)));
+
+        GT = PermutationGroup(tuple(transpositions));
+
+        C = GT.cayley_graph();
+
+        def compute_length (g):
+            return C.shortest_path_length(GT.identity(), g);
+
+        relations = set();
+
+        for g1 in GT:
+            for g2 in GT:
+                # No need to check if they are the same or already compare the other way
+                if g1 != g2 and (g2,g1) not in relations:
+                    # g1 < g2
+                    if compute_length(g2) == compute_length(g1) + compute_length((g1**(-1))*g2):
+                        relations.add((g1,g2));
 
         return Poset((GT, relations));
 
